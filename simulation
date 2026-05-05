@@ -1,0 +1,78 @@
+# ESP32 Crash Detection Simulation using MockUART for GSM AT Commands
+# This simulates the Black Box accident recorder on ESP32 in Wokwi
+# Redirects UART2 AT commands to Serial Terminal for verification
+
+import time
+from mock_uart import MockUART
+
+# Simulate UART2 for GSM module (normally connected to A7 Thinker)
+uart2 = MockUART(2, tx=17, rx=16, baudrate=115200)
+
+# Mock accelerometer readings (in real hardware, this would be from MPU-6050)
+def get_acceleration():
+    # Simulate normal driving (random values around 1G)
+    import random
+    return random.uniform(0.8, 1.2)
+
+# GSM AT command functions
+def send_sms(phone_number, message):
+    """Send SMS using AT commands"""
+    # Set SMS text mode
+    uart2.write(b'AT+CMGF=1\r\n')
+    time.sleep(0.1)
+
+    # Set recipient
+    uart2.write(f'AT+CMGS="{phone_number}"\r\n'.encode())
+    time.sleep(0.1)
+
+    # Send message content
+    uart2.write(f'{message}\x1A'.encode())  # \x1A is Ctrl+Z to send
+    time.sleep(0.1)
+
+def initialize_gsm():
+    """Initialize GSM module"""
+    uart2.write(b'AT\r\n')  # Check connection
+    time.sleep(0.1)
+    uart2.write(b'AT+CPIN?\r\n')  # Check SIM card
+    time.sleep(0.1)
+
+# Main simulation loop
+def main():
+    print("ESP32 Black Box Simulation Started")
+    print("Monitoring acceleration for crash detection...")
+
+    initialize_gsm()
+
+    crash_detected = False
+    countdown = 20  # 20-second safety countdown
+
+    while True:
+        accel = get_acceleration()
+        print(f"Acceleration: {accel:.2f}G")
+
+        if accel >= 3.5 and not crash_detected:
+            print("CRASH DETECTED! Starting 20-second countdown...")
+            crash_detected = True
+            countdown = 20
+
+        if crash_detected:
+            print(f"Countdown: {countdown} seconds remaining")
+            countdown -= 1
+
+            if countdown <= 0:
+                print("Sending emergency SMS alerts...")
+                # Send to multiple emergency contacts
+                emergency_contacts = ["+1234567890", "+0987654321"]
+                message = "EMERGENCY: Vehicle accident detected! Location: Unknown (GPS not implemented in simulation)"
+
+                for contact in emergency_contacts:
+                    send_sms(contact, message)
+                    time.sleep(1)
+
+                print("SMS alerts sent. Resetting system...")
+                crash_detected = False
+
+        time.sleep(1)  # Check every second
+
+if __name__ == "__main__":
+    main()
